@@ -1,6 +1,0 @@
-{
-	"token": "NjAzOTU0NjgyODcxNjc2OTI4.XTm7rg.lEWdA2dXsOqbKbfCae7MgIXGQ9A",
-	"database": "mongodb://localhost:27017",
-	"channel": "603953738478256128",
-	"link": "https://discordapp.com/oauth2/authorize?client_id=603954682871676928&scope=bot&permissions=67226688"
-}
