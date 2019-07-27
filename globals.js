@@ -5,6 +5,13 @@ module.exports = {
 		data: null,
 		camps: null,
 		locations: null,
-		users: null
+		users: null,
+		tasks: null
+	},
+	module: {
+		camp: null,
+		store: null,
+		user: null,
+		task: null
 	}
 }

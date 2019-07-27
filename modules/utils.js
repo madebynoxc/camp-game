@@ -18,5 +18,10 @@ module.exports = {
 
 	f(user, msg) {
 		return `**${user}**, ${msg}`;
+	},
+
+	getDrain(dateStart) {
+		let diff = new Date() - dateStart;
+		return diff * .0000001;
 	}
 }

@@ -4,9 +4,11 @@ const MongoClient = require('mongodb').MongoClient;
 const $ = require("./globals");
 
 const _ = require("./modules/utils");
-const camp = require("./modules/camp");
-const store = require("./modules/store");
-const user = require("./modules/user");
+
+$.module.camp = require("./modules/camp");
+$.module.store = require("./modules/store");
+$.module.user = require("./modules/user");
+$.module.task = require("./modules/task");
 
 $.bot = new Discord.Client({
 	token: config.token
@@ -20,6 +22,7 @@ MongoClient.connect(config.database, { useNewUrlParser: true }, (err, client) =>
 	$.col.camps = $.mongo.collection("camps");
 	$.col.locations = $.mongo.collection("locations");
 	$.col.users = $.mongo.collection("users");
+	$.col.tasks = $.mongo.collection("tasks");
 	$.bot.connect();
 });
 
@@ -27,6 +30,7 @@ $.bot.on("ready", event => {
 	console.log("Bot ready");
 	$.bot.setPresence({game: {name: "in a camp"}});
 	sendMessage("The camp is here");
+	setInterval(tick, 5000);
 });
 
 $.bot.on("message", async (username, userID, channelID, message, event) => { 
@@ -37,8 +41,8 @@ $.bot.on("message", async (username, userID, channelID, message, event) => {
 	if(curUser.bot)
 		return;
 
-	if(!await user.exists(userID)) {
-		await user.create(userID);
+	if(!await $.module.user.exists(userID)) {
+		await $.module.user.create(userID);
 		sendMessage(_.f(username, "welcome to **The Camp Game △**"));
 	}
 
@@ -48,13 +52,16 @@ $.bot.on("message", async (username, userID, channelID, message, event) => {
 
 		switch(command) {
 			case "camp":
-				reply = await camp.do(userID, username, args);
+				reply = await $.module.camp.do(userID, username, args);
 				break;
 			case "scout":
-				reply = await camp.scout(userID, args);
+				reply = await $.module.camp.scout(userID, args);
 				break;
 			case "store":
-				reply = await store.do(userID, username, args);
+				reply = await $.module.store.do(userID, username, args);
+				break;
+			case "inv":
+				reply = await $.module.user.inventory(userID, username);
 				break;
 			case "help":
 				reply = await getHelp();
@@ -75,3 +82,9 @@ function sendMessage(msg) {
     });
 }
 
+async function tick() {
+	let taskList = await $.col.tasks.find().toArray();
+	for (var i = 0; i < taskList.length; i++) {
+		//taskList[i]
+	}
+}

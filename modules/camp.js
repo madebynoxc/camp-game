@@ -12,18 +12,36 @@ module.exports = {
 				return await name(userID, args);
 			case "build":
 				return await build(userID, args);
+			case "clean":
+				return await clean(userID);
+			case "scout":
+				return await scout(userID, args);
+			case "resources":
+				return await resources(userID);
 			default:
 				return await info(userID, userName);
 		}
-	},
-
-	async scout(userID, args) {
-		return "Souting area...";
 	}
 }
 
+async function scout(userID, args) {
+	return "Souting area...";
+}
+
+async function resources(userID) {
+	let camp = await $.col.camps.findOne({"owner": userID});
+	if(!camp)
+		return "Seems like you don't have a camp. To set up one run `/camp new`";
+
+	let res = "";
+	for (var i = 0; i < camp.resources.length; i++) {
+		res += `${camp.resources[i].name} (${camp.resources[i].amount})\n`;
+	}
+	return res;
+}
+
 async function info(userID, userName) {
-		let camp = (await $.col.camps.find({"owner": userID}).toArray())[0];
+		let camp = await $.col.camps.findOne({"owner": userID});
 		if(!camp)
 			return "Seems like you don't have a camp. To set up one run `/camp new`";
 
@@ -40,6 +58,8 @@ async function info(userID, userName) {
 		info.push(`Location: **${loc.name}**`);
 		info.push(`Owner: **${userName}**`);
 		info.push(`Energy: **${camp.energy}**`);
+		info.push(`Garbage: **${camp.garbage}**`);
+		info.push(`Resources: **${camp.resources.length}** (\`/camp resources\` to view)`);
 		info.push(`Currently **${camp.action? camp.action.name : "doing nothing"}** ${timeToAction}`);
 		return info.join('\n');
 	}
@@ -49,7 +69,7 @@ async function info(userID, userName) {
 	}
 
 	async function name(userID, args) {
-		let camp = (await $.col.camps.find({"owner": userID}).toArray())[0];
+		let camp = await $.col.camps.findOne({"owner": userID});
 		if(!camp)
 			return "Seems like you don't have a camp. To set up one run `/camp new`";
 
@@ -63,7 +83,7 @@ async function info(userID, userName) {
 		if(!camp)
 			return "Seems like you don't have a camp. To set up one run `/camp new`";
 
-
+		
 	}
 
 	async function newc(userID, userName, args) {
@@ -77,8 +97,9 @@ async function info(userID, userName) {
 				await $.col.camps.insertOne({
 					"owner": userID, 
 					"location": loc.id,
+					"resources": [],
 					"level": 0,
-					"energy": 100,
+					"energy": 100.0,
 					"protection": 1,
 					"comfort": 1,
 					"food": 5,
