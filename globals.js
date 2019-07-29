@@ -12,6 +12,8 @@ module.exports = {
 		camp: null,
 		store: null,
 		user: null,
-		task: null
+		task: null,
+		item: null,
+		admin: null
 	}
 }

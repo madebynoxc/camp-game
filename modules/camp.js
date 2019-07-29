@@ -47,8 +47,8 @@ async function info(userID, userName) {
 
 		let timeToAction = '';
 		if(camp.action) {
-			let tr = (camp.action.expires - new Date());
-			timeToAction = `(${tr.getHours()}h ${tr.getMinutes()}m ${tr.getSeconds()}s)`
+			let tr = new Date(camp.action.expires - new Date());
+			timeToAction = _.timeLeft(tr);
 		}
 
 		let loc = (await $.col.locations.find({"id": camp.location}).toArray())[0];
@@ -79,11 +79,20 @@ async function info(userID, userName) {
 	}
 
 	async function clean(userID) {
-		let camp = (await $.col.camps.find({"owner": userID}).toArray())[0];
+		let camp = await $.col.camps.findOne({"owner": userID});
 		if(!camp)
 			return "Seems like you don't have a camp. To set up one run `/camp new`";
 
-		
+		let time = camp.garbage * 10;
+		camp.action = {
+			id: "clean",
+			name: "cleaning camp site...",
+			drain: 1.5,
+			expires: new Date((new Date()).getTime() + time)
+		}
+
+		$.col.camps.save(camp);
+		return `Started camp cleaning. Ends in: **${_.timeLeft(new Date(time))}**`;
 	}
 
 	async function newc(userID, userName, args) {
@@ -103,7 +112,7 @@ async function info(userID, userName) {
 					"protection": 1,
 					"comfort": 1,
 					"food": 5,
-					"garbage": 0
+					"garbage": 1
 
 				});
 

@@ -23,5 +23,9 @@ module.exports = {
 	getDrain(dateStart) {
 		let diff = new Date() - dateStart;
 		return diff * .0000001;
+	},
+
+	timeLeft(date) {
+		return `(${date.getHours()}h ${date.getMinutes()}m ${date.getSeconds()}s)`;
 	}
 }

@@ -30,7 +30,7 @@ $.bot.on("ready", event => {
 	console.log("Bot ready");
 	$.bot.setPresence({game: {name: "in a camp"}});
 	sendMessage("The camp is here");
-	setInterval(tick, 5000);
+	//setInterval(tick, 5000);
 });
 
 $.bot.on("message", async (username, userID, channelID, message, event) => { 
@@ -83,8 +83,28 @@ function sendMessage(msg) {
 }
 
 async function tick() {
-	let taskList = await $.col.tasks.find().toArray();
-	for (var i = 0; i < taskList.length; i++) {
-		//taskList[i]
+	let write = [];
+	let date = new Date();
+	let camps = await $.col.camps.find().toArray();
+	for (var i = 0; i < camps.length; i++) {
+		let mul = 1;
+		let set = {};
+		if(camp.action) {
+			mul = camp.action.drain;
+			if(date > camp.action.expires) {
+				sendMessage(`Task **${camp.action.id}** in **${camp.name}** is complete`);
+				set.action = null;
+			}
+		}
+
+		set.energy = camp.energy - .1 * mul;
+		set.garbage = camp.garbage + .01;
+
+		write.push({updateOne: {
+			filter: {"_id": camp._id}, 
+			update: {$set: set}
+		}});
 	}
+
+	$.col.camps.bulkWrite(write);
 }
