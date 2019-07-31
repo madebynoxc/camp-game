@@ -9,6 +9,7 @@ $.module.camp = require("./modules/camp");
 $.module.store = require("./modules/store");
 $.module.user = require("./modules/user");
 $.module.task = require("./modules/task");
+$.module.location = require("./modules/location");
 
 $.bot = new Discord.Client({
 	token: config.token

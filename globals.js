@@ -14,6 +14,7 @@ module.exports = {
 		user: null,
 		task: null,
 		item: null,
-		admin: null
+		admin: null,
+		location: null
 	}
 }
