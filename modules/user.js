@@ -8,9 +8,10 @@ module.exports = {
 		return u? true : false;
 	},
 
-	async create(userID) {
+	async create(userID, username) {
 		let newUser = {
 			"discord_id": userID,
+			"username": username,
 			"achievements": [],
 			"camping": 0,
 			"credits": 200,

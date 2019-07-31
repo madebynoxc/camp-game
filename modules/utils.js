@@ -25,7 +25,25 @@ module.exports = {
 		return diff * .0000001;
 	},
 
-	timeLeft(date) {
-		return `(${date.getHours()}h ${date.getMinutes()}m ${date.getSeconds()}s)`;
+	timeLeft(tg) {
+	    let mil = tg - new Date();
+	    return msToTime(mil);
 	}
+}
+
+function msToTime(s) {
+
+	  function pad(n, z) {
+	    z = z || 2;
+	    return ('00' + n).slice(-z);
+	  }
+
+	  var ms = s % 1000;
+	  s = (s - ms) / 1000;
+	  var secs = s % 60;
+	  s = (s - secs) / 60;
+	  var mins = s % 60;
+	  var hrs = (s - mins) / 60;
+
+	  return `${pad(hrs)}h ${pad(mins)}m ${pad(secs)}s`;
 }

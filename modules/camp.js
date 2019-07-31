@@ -25,13 +25,38 @@ module.exports = {
 }
 
 async function scout(userID, args) {
-	return "Souting area...";
+	let camp = await $.col.camps.findOne({"owner": userID});
+	if(!camp)
+		return "Seems like you don't have a camp. To set up one run `/camp new`";
+
+	if(camp.action)
+		return `You already **${camp.action.name}**`
+
+	let level = parseInt(args[0]);
+	if(!level || level > 3 || level < 1)
+		return `Please specify scouting level:\n1. Short walk (3m)\n2.Exploration (15m)3. Expedition (1h)`
+
+	let timeLevels = [3, 15, 60];
+	let time = new Date((new Date()).getTime() + 1000 * 60 * timeLevels[level]);
+	camp.action = {
+		id: "scout",
+		name: "scouting area",
+		drain: 3,
+		expires: time,
+		exp: 1
+	}
+
+	$.col.camps.save(camp);
+	return `Started scouting for resources. Ends in: **${_.timeLeft(time)}**`;
 }
 
 async function resources(userID) {
 	let camp = await $.col.camps.findOne({"owner": userID});
 	if(!camp)
 		return "Seems like you don't have a camp. To set up one run `/camp new`";
+
+	if(camp.resources.length == 0)
+		return "You don't have any resources. Collect them by scouting the area using `/camp scout`";
 
 	let res = "";
 	for (var i = 0; i < camp.resources.length; i++) {
@@ -47,18 +72,17 @@ async function info(userID, userName) {
 
 		let timeToAction = '';
 		if(camp.action) {
-			let tr = new Date(camp.action.expires - new Date());
-			timeToAction = _.timeLeft(tr);
+			timeToAction = _.timeLeft(camp.action.expires);
 		}
 
 		let loc = (await $.col.locations.find({"id": camp.location}).toArray())[0];
 		let info = [];
 		info.push(`Name: **${camp.name? camp.name : "<use `/camp name [name]` to set>"}**`);
-		info.push(`Level: **${camp.level}**`);
+		info.push(`Level: **${camp.level.toFixed(0)}**`);
 		info.push(`Location: **${loc.name}**`);
 		info.push(`Owner: **${userName}**`);
-		info.push(`Energy: **${camp.energy}**`);
-		info.push(`Garbage: **${camp.garbage}**`);
+		info.push(`Energy: **${camp.energy.toFixed(1)}**`);
+		info.push(`Garbage: **${(camp.action && camp.action.id == "clean")? "cleaning..." : camp.garbage.toFixed(1)}**`);
 		info.push(`Resources: **${camp.resources.length}** (\`/camp resources\` to view)`);
 		info.push(`Currently **${camp.action? camp.action.name : "doing nothing"}** ${timeToAction}`);
 		return info.join('\n');
@@ -83,16 +107,23 @@ async function info(userID, userName) {
 		if(!camp)
 			return "Seems like you don't have a camp. To set up one run `/camp new`";
 
-		let time = camp.garbage * 10;
+		if(camp.action)
+			return `You already **${camp.action.name}**`
+
+		if(camp.garbage < 1.0)
+			return `You can start cleaning only when amount of garbage is **more than 1**`;
+
+		let time = new Date((new Date()).getTime() + camp.garbage * 1000 * 60 * 5);
 		camp.action = {
 			id: "clean",
-			name: "cleaning camp site...",
+			name: "cleaning campsite",
 			drain: 1.5,
-			expires: new Date((new Date()).getTime() + time)
+			expires: time,
+			exp: camp.garbage * .5
 		}
 
 		$.col.camps.save(camp);
-		return `Started camp cleaning. Ends in: **${_.timeLeft(new Date(time))}**`;
+		return `Started camp cleaning. Ends in: **${_.timeLeft(time)}**`;
 	}
 
 	async function newc(userID, userName, args) {

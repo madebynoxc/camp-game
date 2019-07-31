@@ -30,7 +30,7 @@ $.bot.on("ready", event => {
 	console.log("Bot ready");
 	$.bot.setPresence({game: {name: "in a camp"}});
 	sendMessage("The camp is here");
-	//setInterval(tick, 5000);
+	setInterval(tick, 5000);
 });
 
 $.bot.on("message", async (username, userID, channelID, message, event) => { 
@@ -42,7 +42,7 @@ $.bot.on("message", async (username, userID, channelID, message, event) => {
 		return;
 
 	if(!await $.module.user.exists(userID)) {
-		await $.module.user.create(userID);
+		await $.module.user.create(userID, username);
 		sendMessage(_.f(username, "welcome to **The Camp Game △**"));
 	}
 
@@ -89,16 +89,23 @@ async function tick() {
 	for (var i = 0; i < camps.length; i++) {
 		let mul = 1;
 		let set = {};
+		let camp = camps[i];
 		if(camp.action) {
 			mul = camp.action.drain;
 			if(date > camp.action.expires) {
+				await onActionComplete(camp);
+				let user = await $.col.users.findOne(camp.owner.id);
+				let name = camp.name? camp.name : `campsite by ${user.username}`;
 				sendMessage(`Task **${camp.action.id}** in **${camp.name}** is complete`);
+				set.level = camp.level + camp.action.exp;
 				set.action = null;
 			}
+
+			if(camp.action.id != "clean")
+				set.garbage = camp.garbage + .01;
 		}
 
-		set.energy = camp.energy - .1 * mul;
-		set.garbage = camp.garbage + .01;
+		set.energy = camp.energy - .05 * mul;
 
 		write.push({updateOne: {
 			filter: {"_id": camp._id}, 
@@ -107,4 +114,13 @@ async function tick() {
 	}
 
 	$.col.camps.bulkWrite(write);
+}
+
+async function onActionComplete(camp) {
+	switch(camp.action.id) {
+		case "clean":
+			camp.garbage = 0;
+			await $.col.camps.save(camp);
+			break;
+	}
 }
