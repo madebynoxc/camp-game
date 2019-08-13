@@ -1,6 +1,5 @@
-const $ = require("../globals");
-const _ = require("./utils");
+const {cmd} = require('../utils/cmd')
 
-module.exports = {
-
-}
+cmd('help', 'location', (ctx, user) => {
+    ctx.rpl(user, 'Here is some help for about location: **no**')
+})

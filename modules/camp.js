@@ -1,164 +1,128 @@
-const $ = require("../globals");
-const _ = require("./utils");
+const msToTime = require('pretty-ms')
+const {Camp, Location} = require('../collections')
+const {cmd} = require('../utils/cmd')
 
-module.exports = {
+/* helper wrapper function for command handler */
+const withCamp = callback => async (ctx, user, ...args) => {
+    const camp = await Camp.findOne({ owner: user.discord_id })
 
-	async do(userID, userName, args) {
-		let elem = args.shift();
-		switch(elem) {
-			case "new":
-				return await newc(userID, userName, args);
-			case "name":
-				return await name(userID, args);
-			case "build":
-				return await build(userID, args);
-			case "clean":
-				return await clean(userID);
-			case "scout":
-				return await scout(userID, args);
-			case "resources":
-				return await resources(userID);
-			default:
-				return await info(userID, userName);
-		}
-	}
+    if (!camp) {
+        return ctx.rpl(user, 'Seems like you don\'t have a camp. To set up one run `/camp new`');
+    }
+
+    return callback(ctx, user, camp, ...args)
 }
 
-async function scout(userID, args) {
-	let camp = await $.col.camps.findOne({"owner": userID});
-	if(!camp)
-		return "Seems like you don't have a camp. To set up one run `/camp new`";
+cmd('camp', 'new', async (ctx, user, arg1) => {
+    const camps = await Camp.countDocuments({ owner: user.discord_id })
 
-	if(camp.action)
-		return `You already **${camp.action.name}**`
+    if (camps.length > 0) {
+        return ctx.rpl(user, 'you already have a camp!')
+    }
 
-	let level = parseInt(args[0]);
-	if(!level || level > 3 || level < 1)
-		return `Please specify scouting level:\n1. Short walk (3m)\n2.Exploration (15m)3. Expedition (1h)`
+    const location = await Location.findOne({ id: parseInt(arg1) || -1 })
 
-	let timeLevels = [3, 15, 60];
-	let time = new Date((new Date()).getTime() + 1000 * 60 * timeLevels[level]);
-	camp.action = {
-		id: "scout",
-		name: "scouting area",
-		drain: 3,
-		expires: time,
-		exp: 1
-	}
+    if (!location) {
+        const allLocations = await Location.find()
+        const locationlist = allLocations.map(loc => `${loc.id}. **${loc.name}**`)
 
-	$.col.camps.save(camp);
-	return `Started scouting for resources. Ends in: **${_.timeLeft(time)}**`;
-}
+        const response = [
+            'You need to specify a location.',
+            'Select one and run `/camp new [location #]',
+            'Existing locations:',
+        ].concat(locationlist)
 
-async function resources(userID) {
-	let camp = await $.col.camps.findOne({"owner": userID});
-	if(!camp)
-		return "Seems like you don't have a camp. To set up one run `/camp new`";
+        return ctx.rpl(user, response)
+    }
 
-	if(camp.resources.length == 0)
-		return "You don't have any resources. Collect them by scouting the area using `/camp scout`";
+    const camp = new Camp()
 
-	let res = "";
-	for (var i = 0; i < camp.resources.length; i++) {
-		res += `${camp.resources[i].name} (${camp.resources[i].amount})\n`;
-	}
-	return res;
-}
+    camp.location = location.id
+    camp.owner = user.discord_id
 
-async function info(userID, userName) {
-		let camp = await $.col.camps.findOne({"owner": userID});
-		if(!camp)
-			return "Seems like you don't have a camp. To set up one run `/camp new`";
+    await camp.save()
+    await ctx.rpl(user, `new camp established in **${location.name}**. Run \`/camp\` to view`)
+})
 
-		let timeToAction = '';
-		if(camp.action) {
-			timeToAction = _.timeLeft(camp.action.expires);
-		}
+cmd('camp', withCamp(async (ctx, user, camp) => {
+    console.log(camp.action)
 
-		let loc = (await $.col.locations.find({"id": camp.location}).toArray())[0];
-		let info = [];
-		info.push(`Name: **${camp.name? camp.name : "<use `/camp name [name]` to set>"}**`);
-		info.push(`Level: **${camp.level.toFixed(0)}**`);
-		info.push(`Location: **${loc.name}**`);
-		info.push(`Owner: **${userName}**`);
-		info.push(`Energy: **${camp.energy.toFixed(1)}**`);
-		info.push(`Garbage: **${(camp.action && camp.action.id == "clean")? "cleaning..." : camp.garbage.toFixed(1)}**`);
-		info.push(`Resources: **${camp.resources.length}** (\`/camp resources\` to view)`);
-		info.push(`Currently **${camp.action? camp.action.name : "doing nothing"}** ${timeToAction}`);
-		return info.join('\n');
-	}
+    const timeToAction = camp.action
+        ? msToTime(new Date(camp.action.expires) - new Date())
+        : ''
 
-	async function build(userID, args) {
-		return "Build something great...";
-	}
+    const location = await Location.findOne({ id: camp.location })
+    const response = [
+        `your camp information:`,
+        `Name: **${camp.name? camp.name : "<use `/camp name [name]` to set>"}**`,
+        `Level: **${camp.level.toFixed(0)}**`,
+        `Location: **${location.name}**`,
+        `Owner: **${user.name}**`,
+        `Energy: **${camp.energy.toFixed(1)}**`,
+        `Garbage: **${(camp.action && camp.action.id == "clean")? "cleaning..." : camp.garbage.toFixed(1)}**`,
+        `Resources: **${camp.resources.length}** (\`/camp resources\` to view)`,
+        `Currently **${camp.action? camp.action.name : "doing nothing"}** ${timeToAction}`,
+    ]
 
-	async function name(userID, args) {
-		let camp = await $.col.camps.findOne({"owner": userID});
-		if(!camp)
-			return "Seems like you don't have a camp. To set up one run `/camp new`";
+    return ctx.rpl(user, response)
+}))
 
-		camp.name = args.join(' ');
-		await $.col.camps.save(camp);
-		return "Name has been updated";
-	}
+cmd('camp', 'name', withCamp(async (ctx, user, camp, ...args) => {
+    camp.name = args.join(' ')
 
-	async function clean(userID) {
-		let camp = await $.col.camps.findOne({"owner": userID});
-		if(!camp)
-			return "Seems like you don't have a camp. To set up one run `/camp new`";
+    await camp.save()
+    await ctx.rpl(user, 'name has been updated')
+}))
 
-		if(camp.action)
-			return `You already **${camp.action.name}**`
+cmd('camp', 'build', withCamp(async (ctx, user, camp, ...args) => {
+    ctx.rpl(user, 'I see you wish to build something, eh')
+}))
 
-		if(camp.garbage < 1.0)
-			return `You can start cleaning only when amount of garbage is **more than 1**`;
+cmd('camp', 'resources', withCamp(async (ctx, user, camp) => {
+    if (camp.resources.length == 0) {
+        return ctx.rpl(user, "You don't have any resources. Collect them by scouting the area using `/camp scout`")
+    }
 
-		let time = new Date((new Date()).getTime() + camp.garbage * 1000 * 60 * 5);
-		camp.action = {
-			id: "clean",
-			name: "cleaning campsite",
-			drain: 1.5,
-			expires: time,
-			exp: camp.garbage * .5
-		}
+    const response = camp.resources.map(res =>
+        `${res.name} (${res.amount})`
+    )
 
-		$.col.camps.save(camp);
-		return `Started camp cleaning. Ends in: **${_.timeLeft(time)}**`;
-	}
+    return ctx.rpl(user, response)
+}))
 
-	async function newc(userID, userName, args) {
-		try {
-			let resp = await $.col.camps.find({"owner": userID}).toArray();
-			if(resp.length > 0)
-				return _.f(userName, "you already have a camp!");
+const scout = withCamp(async (ctx, user, camp, ...args) => {
+    if (camp.action && camp.action.name) {
+        return ctx.rpl(user, `You already **${camp.action.name}**`)
+    }
 
-			let loc = (await $.col.locations.find({"id": parseInt(args)}).toArray())[0];
-			if(loc) {
-				await $.col.camps.insertOne({
-					"owner": userID, 
-					"location": loc.id,
-					"resources": [],
-					"level": 0,
-					"energy": 100.0,
-					"protection": 1,
-					"comfort": 1,
-					"food": 5,
-					"garbage": 1
+    const level = parseInt(args[0]) || -1;
 
-				});
+    if (!level || level > 3 || level < 1) {
+        return ctx.rpl(user, [
+            'Please specify scouting level:',
+            '1. Short walk (3m)',
+            '2.Exploration (15m)',
+            '3. Expedition (1h)',
+        ])
+    }
 
-				return _.f(userName, `new camp established in **${loc.name}**. Run \`/camp\` to view`);
-			}
+    const timeLevels = [-1, 3, 15, 60];
+    const time = Date.now() + 1000 * 60 * timeLevels[level];
+    const diff = new Date(time) - new Date()
 
-		} catch { }
+    camp.action = {
+        id: "scout",
+        name: "scouting area",
+        drain: 3,
+        expires: time,
+        exp: 1
+    }
 
-		let locs = await $.col.locations.find().toArray();
-		let locList = [];
-		for (let i = 0; i < locs.length; i++) {
-			locList.push(`${(i + 1)}. **${locs[i].name}**`);
-		}
+    camp.markModified('action');
 
-		return _.f(userName, "you need to specify a location."
-			+"\nSelect one and run `/camp new [location #]`:\n"
-			+ locList.join("\n"));
-	};	
+    await camp.save();
+    await ctx.rpl(user, `Started scouting for resources. Ends in: **${msToTime(diff)}**`)
+})
+
+cmd('scout', scout)
+cmd('camp', 'scout', scout)

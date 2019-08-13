@@ -1,29 +1,23 @@
-const $ = require("../globals");
-const _ = require("./utils");
+const {cmd} = require('../utils/cmd')
 
-module.exports = {
+cmd('store', (ctx, user) => {
+    ctx.rpl(user, '**!Welcome to the camp store!**')
+})
 
-	async do(userID, userName, args) {
-		let elem = args.shift();
-		switch(elem) {
-			case "buy":
-				return await buy(userID, args);
-			case "sell":
-				return await sell(userID, args);
-			default:
-				return await info();
-		}
-	}
-}
+cmd('store', 'buy', async (ctx, user, ...args) => {
 
-async function info() {
-	return "**!Welcome to the camp store!**";
-}
+})
 
-async function buy(userID, args) {
+cmd('store', 'sell', async (ctx, user, ...args) => {
 
-}
+})
 
-async function sell(userID, args) {
+cmd('help', 'store', ({ rpl }, user) => {
+    const data = [
+        'Here is the help for the store:',
+        '**/store buy ID** - allows you to buy a thing',
+        '**/store sell ID** - allows you to sell a thing',
+    ]
 
-}
+    rpl(user, data.join('\n'))
+})
