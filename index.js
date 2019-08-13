@@ -94,7 +94,9 @@ async function tick(ctx) {
         }})
     }
 
-    Camp.collection.bulkWrite(write);
+    if (write.length > 0) {
+        Camp.collection.bulkWrite(write);
+    }
 }
 
 main().catch(console.error)
