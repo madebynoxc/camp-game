@@ -1,36 +1,38 @@
-const $ = require("../globals");
-const _ = require("./utils");
+/* functions */
+
+const User = require('../collections/user')
+
+const fetchOrCreate = async (ctx, userid, username) => {
+    let user = await User.findOne({ discord_id: userid })
+
+    if (!user) {
+        user = new User()
+        user.name = username
+        user.discord_id = userid
+
+        /* save, and send welcome msg */
+        await user.save()
+        await ctx.rpl(user, 'welcome to **The Camp Game △**')
+    }
+
+    return user
+}
 
 module.exports = {
-
-	async exists(userID) {
-		let u = await $.col.users.findOne({"discord_id": userID});
-		return u? true : false;
-	},
-
-	async create(userID, username) {
-		let newUser = {
-			"discord_id": userID,
-			"username": username,
-			"achievements": [],
-			"camping": 0,
-			"credits": 200,
-			"inventory": []
-		};
-
-		await $.col.users.insertOne(newUser);
-	},
-
-	async inventory(userID, username) {
-		let user = await $.col.users.findOne({"discord_id": userID});
-		if(user.inventory.length == 0)
-			return _.f(username, "your inventory is empty. Buy something from the `/store`");
-
-		let res = "";
-		for (var i = 0; i < user.inventory.length; i++) {
-			res += `${(i + 1)}. ${user.inventory[i].name}\n`;
-		}
-
-		return res;
-	}
+    fetchOrCreate,
 }
+
+/* commands */
+
+const {cmd} = require('../utils/cmd')
+
+cmd('inv', ({ rpl }, user) => {
+    if (user.inventory.length == 0) {
+        return rpl(user, 'your inventory is empty. Buy something from the `/store`')
+    }
+
+    const items = user.inventory
+        .map((item, index) => `${index+1}. ${item.name}`)
+
+    return rpl(user, items.join('\n'))
+})

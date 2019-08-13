@@ -1,127 +1,100 @@
-const Discord = require("discord.io");
-const config = require("./config");
-const MongoClient = require('mongodb').MongoClient;
-const $ = require("./globals");
+const discord   = require('discord.io')
+const mongoose  = require('mongoose')
+const config    = require('./config')
+const colors    = require('./utils/colors')
+const {trigger} = require('./utils/cmd')
+const {user}    = require('./modules')
+const {Camp}    = require('./collections')
 
-const _ = require("./modules/utils");
+const mongoUri = config.database
+const mongoOpt = {useNewUrlParser: true}
 
-$.module.camp = require("./modules/camp");
-$.module.store = require("./modules/store");
-$.module.user = require("./modules/user");
-$.module.task = require("./modules/task");
-$.module.location = require("./modules/location");
+async function main() {
+    console.log('[info] intializing connection and starting bot...')
 
-$.bot = new Discord.Client({
-	token: config.token
-});
+    /* basics */
+    const mcn = await mongoose.connect(mongoUri, mongoOpt)
+    const bot = new discord.Client({ token: config.token, autorun: true })
 
-MongoClient.connect(config.database, { useNewUrlParser: true }, (err, client) => {
-	console.log("Connected to database");
+    /* create our beautiful msg sending fn */
+    const msg = (str, color = 'default') => new Promise((r, f) => {
+        const embed = { color: colors[color], description: str }
+        bot.sendMessage({ to: config.channel, embed }, e => e ? f(e) : r())
+    })
 
-	$.mongo = client.db("camp");
-	$.col.data = $.mongo.collection("data");
-	$.col.camps = $.mongo.collection("camps");
-	$.col.locations = $.mongo.collection("locations");
-	$.col.users = $.mongo.collection("users");
-	$.col.tasks = $.mongo.collection("tasks");
-	$.bot.connect();
-});
+    /* create our player reply sending fn */
+    const rpl = (user, str, clr) => msg(`**${user.name}**, ${Array.isArray(str) ? str.join('\n') : str}`, clr)
 
-$.bot.on("ready", event => {
-	console.log("Bot ready");
-	$.bot.setPresence({game: {name: "in a camp"}});
-	sendMessage("The camp is here");
-	setInterval(tick, 5000);
-});
+    /* create our context */
+    const ctx = { mcn, bot, msg, rpl }
 
-$.bot.on("message", async (username, userID, channelID, message, event) => { 
-	if(!message.startsWith("/"))
-		return;
+    /* events */
+    bot.on('ready', async event => {
+        bot.setPresence({ game: { name: 'in a camp' } })
 
-	var curUser = $.bot.users[userID];
-	if(curUser.bot)
-		return;
+        console.log('[info] bot is ready')
+        // await msg('The camp is here')
 
-	if(!await $.module.user.exists(userID)) {
-		await $.module.user.create(userID, username);
-		sendMessage(_.f(username, "welcome to **The Camp Game △**"));
-	}
+        setInterval(tick.bind(this, ctx), 5000);
+    })
 
-		let reply = "Run `/help` to find out more";
-		let args = message.split(' ');
-		let command = args.shift().substring(1);
+    bot.on('message', async (username, userid, channelid, message, event) => {
+        if (!message.startsWith(config.prefix)) return; /* skip not commands */
+        if (bot.users[userid].bot) return; /* skip bot users */
 
-		switch(command) {
-			case "camp":
-				reply = await $.module.camp.do(userID, username, args);
-				break;
-			case "scout":
-				reply = await $.module.camp.scout(userID, args);
-				break;
-			case "store":
-				reply = await $.module.store.do(userID, username, args);
-				break;
-			case "inv":
-				reply = await $.module.user.inventory(userID, username);
-				break;
-			case "help":
-				reply = await getHelp();
-				break;
-		}
+        const usr  = await user.fetchOrCreate(ctx, userid, username)
+        const args = message.trim().substring(1).split(' ')
 
-		sendMessage(reply);
-});
-
-async function getHelp() {
-
-}
-
-function sendMessage(msg) {
-	var res = _.embed(_.colors.default, msg);
-	$.bot.sendMessage({to: config.channel, embed: res}, (err, resp) => {
-       	if(err) console.log(err);
-    });
-}
-
-async function tick() {
-	let write = [];
-	let date = new Date();
-	let camps = await $.col.camps.find().toArray();
-	for (var i = 0; i < camps.length; i++) {
-		let mul = 1;
-		let set = {};
-		let camp = camps[i];
-		if(camp.action) {
-			mul = camp.action.drain;
-			if(date > camp.action.expires) {
-				await onActionComplete(camp);
-				let user = await $.col.users.findOne(camp.owner.id);
-				let name = camp.name? camp.name : `campsite by ${user.username}`;
-				sendMessage(`Task **${camp.action.id}** in **${camp.name}** is complete`);
-				set.level = camp.level + camp.action.exp;
-				set.action = null;
-			}
-
-			if(camp.action.id != "clean")
-				set.garbage = camp.garbage + .01;
-		}
-
-		set.energy = camp.energy - .05 * mul;
-
-		write.push({updateOne: {
-			filter: {"_id": camp._id}, 
-			update: {$set: set}
-		}});
-	}
-
-	$.col.camps.bulkWrite(write);
+        try {
+            await trigger(args, ctx, usr)
+        } catch (e) {
+            rpl(usr, e.message, 'red')
+        }
+    })
 }
 
 async function onActionComplete(camp) {
-	switch(camp.action.id) {
-		case "clean":
-			camp.garbage = 0;
-			await $.col.camps.save(camp);
-			break;
-	}
+    switch(camp.action.id) {
+        case "clean":
+            camp.garbage = 0;
+            await $.col.camps.save(camp);
+            break;
+    }
 }
+
+async function tick(ctx) {
+    const date = Date.now()
+    const write = []
+    const camps = await Camp.find({ action: { $ne: undefined }})
+
+    for (var i = camps.length - 1; i >= 0; i--) {
+        const camp = camps[i]
+
+        const mul = camp.action.drain
+        const set = {}
+
+        if (date > camp.action.expires) {
+            await onActionComplete(camp);
+
+            ctx.msg(`Task **${camp.action.id}** in **${camp.name || 'unknown camp'}** is complete`)
+
+            set.level = camp.level + camp.action.exp
+            set.action = undefined
+        }
+
+        if (camp.action.id !== 'clean') {
+            set.garbage = camp.garbage + .01;
+        }
+
+        set.energy = camp.energy - .05 * mul;
+
+        write.push({updateOne: {
+            filter: {"_id": camp._id},
+            update: {$set: set}
+        }})
+    }
+
+    Camp.collection.bulkWrite(write);
+}
+
+main().catch(console.error)
